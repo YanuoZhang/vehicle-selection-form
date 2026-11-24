@@ -55,3 +55,46 @@ Test files sit next to the code as `*.test.ts(x)`. Vitest's keyboard shortcuts o
 ```bash
 curl http://localhost:3001/api/health
 ```
+
+### `POST /api/submissions`
+
+`multipart/form-data` with:
+
+| Field     | Type | Notes                                                   |
+| --------- | ---- | ------------------------------------------------------- |
+| `make`    | text | Required, non-empty, sent once; the make id, e.g. `ford` |
+| `model`   | text | Required, non-empty, sent once                          |
+| `badge`   | text | Required, non-empty, sent once; must match make + model |
+| `logbook` | file | Required, one `.txt` file, UTF-8, ≤ 1 MB, not empty     |
+
+```bash
+curl -F make=ford -F model=Ranger -F badge=Raptor \
+     -F logbook=@logbook.txt http://localhost:3001/api/submissions
+```
+
+**200** echoes the submission:
+
+```json
+{
+  "make": "ford",
+  "model": "Ranger",
+  "badge": "Raptor",
+  "logbook": { "fileName": "logbook.txt", "size": 123, "contents": "..." }
+}
+```
+
+**Errors** use `{ "error": { "code": "...", "message": "..." } }`. Checks run in this order and the first failure is returned:
+
+1. **Parsing the multipart body.** These errors fire as the body streams in, so they come before any field check:
+   - `413 FILE_TOO_LARGE`: the file is over 1 MB
+   - `400 UNEXPECTED_FIELD`: a file is in a field other than `logbook`, or more than one file is sent
+   - `400 INVALID_REQUEST`: the body is malformed, has more than 10 text fields, or a text value is over 1 KB
+2. `400 UNEXPECTED_FIELD`: a text field other than `make`, `model` or `badge`
+3. `400 MISSING_FIELDS`: `make`, `model` or `badge` is missing, empty or repeated. A body that isn't multipart ends up here.
+4. `400 INVALID_VEHICLE`: no vehicle has that make/model/badge combination (exact, case-sensitive match)
+5. `400 MISSING_FILE`: no `logbook` file
+6. `400 INVALID_FILE_TYPE`: the file name doesn't end in `.txt` (case-insensitive)
+7. `400 INVALID_FILE_CONTENT`: the file isn't valid UTF-8 or contains NUL bytes
+8. `400 EMPTY_FILE`: the file is empty, or holds only a UTF-8 BOM
+
+Unknown `/api` routes return `404 NOT_FOUND`. Unexpected server errors return `500 INTERNAL_ERROR` with a generic message.
