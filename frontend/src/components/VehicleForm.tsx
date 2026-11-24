@@ -66,13 +66,18 @@ export function VehicleForm({ onSubmitted }: VehicleFormProps) {
       <fieldset disabled={submitting}>
         <QuickSelect onSelect={changeVehicle} />
         <VehicleSelector value={vehicle} onChange={changeVehicle} />
-        <LogbookUpload file={logbook} error={fileError} onChange={changeLogbook} />
+        {/* Upload and Submit are hidden until the vehicle is complete; the file stays in state meanwhile. */}
+        {vehicleComplete && (
+          <LogbookUpload file={logbook} error={fileError} onChange={changeLogbook} />
+        )}
 
         {submitError !== null && <p role="alert">Submission failed: {submitError}</p>}
 
-        <button type="submit" disabled={!canSubmit}>
-          {submitting ? "Submitting…" : "Submit"}
-        </button>
+        {vehicleComplete && (
+          <button type="submit" disabled={!canSubmit}>
+            {submitting ? "Submitting…" : "Submit"}
+          </button>
+        )}
       </fieldset>
     </form>
   );

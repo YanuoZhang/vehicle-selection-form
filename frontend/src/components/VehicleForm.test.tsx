@@ -196,6 +196,9 @@ function logbookInput() {
 function submitButton() {
   return screen.getByRole("button", { name: /^Submit/ });
 }
+function querySubmitButton() {
+  return screen.queryByRole("button", { name: /^Submit/ });
+}
 
 function textFile(name: string, contents = "Serviced 2024") {
   return new File([contents], name, { type: "text/plain" });
@@ -231,6 +234,7 @@ const submission: Submission = {
 describe("logbook upload", () => {
   it("accepts a single .txt file and shows its name and size", () => {
     renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Ford Ranger Raptor" }));
 
     expect(logbookInput()).toHaveAttribute("type", "file");
     expect(logbookInput()).not.toHaveAttribute("multiple");
@@ -298,24 +302,93 @@ describe("logbook upload", () => {
   });
 });
 
+describe("conditional logbook upload and Submit", () => {
+  function queryLogbookInput() {
+    return screen.queryByLabelText("Logbook (.txt, up to 1 MB)");
+  }
+
+  function expectHidden() {
+    expect(queryLogbookInput()).not.toBeInTheDocument();
+    expect(querySubmitButton()).not.toBeInTheDocument();
+  }
+
+  it("are hidden until make, model and badge are all chosen", () => {
+    renderForm();
+    expectHidden();
+
+    choose(makeSelect(), "ford");
+    expectHidden();
+
+    choose(modelSelect(), "Ranger");
+    expectHidden();
+
+    choose(badgeSelect(), "Raptor");
+    expect(queryLogbookInput()).toBeInTheDocument();
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("appear immediately after a quick select, with Submit disabled until a file is chosen", () => {
+    renderForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "BMW 320e xDrive 75d" }));
+
+    expect(queryLogbookInput()).toBeInTheDocument();
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it.each([
+    ["the make changes", () => choose(makeSelect(), "tesla")],
+    ["the make is cleared", () => choose(makeSelect(), "")],
+    ["the model changes", () => choose(modelSelect(), "Falcon")],
+    ["the badge is cleared", () => choose(badgeSelect(), "")],
+  ])("hide again when %s", (_case, makeIncomplete) => {
+    renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Ford Ranger Raptor" }));
+
+    makeIncomplete();
+
+    expectHidden();
+  });
+
+  it("keeps a valid file while hidden and submits it once the vehicle is complete again", async () => {
+    submitMock.mockResolvedValue(submission);
+    const { onSubmitted } = renderForm();
+    const file = fillInValidForm();
+
+    choose(modelSelect(), "Falcon");
+    expectHidden();
+
+    choose(badgeSelect(), "XR8");
+    expect(screen.getByText("Selected: logbook.txt (13 bytes)")).toBeInTheDocument();
+    expect(submitButton()).toBeEnabled();
+
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(1));
+    expect(submitMock).toHaveBeenCalledWith(
+      { make: "ford", model: "Falcon", badge: "XR8" },
+      file,
+    );
+  });
+});
+
 describe("submission", () => {
   it("keeps Submit disabled until both the vehicle and the file are valid", () => {
     renderForm();
-    expect(submitButton()).toBeDisabled();
-    expect(submitButton()).toHaveAttribute("type", "submit");
-
-    upload(textFile("logbook.txt"));
-    expect(submitButton()).toBeDisabled();
+    expect(querySubmitButton()).not.toBeInTheDocument();
 
     choose(makeSelect(), "ford");
     choose(modelSelect(), "Ranger");
-    expect(submitButton()).toBeDisabled();
+    expect(querySubmitButton()).not.toBeInTheDocument();
 
     choose(badgeSelect(), "Raptor");
+    expect(submitButton()).toHaveAttribute("type", "submit");
+    expect(submitButton()).toBeDisabled();
+
+    upload(textFile("logbook.txt"));
     expect(submitButton()).toBeEnabled();
 
     choose(makeSelect(), "bmw");
-    expect(submitButton()).toBeDisabled();
+    expect(querySubmitButton()).not.toBeInTheDocument();
   });
 
   it("sends the selected vehicle and file and reports the result", async () => {
