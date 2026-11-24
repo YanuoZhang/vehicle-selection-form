@@ -17,6 +17,12 @@
     "build:frontend": "npm run build -w frontend",
     "build:backend": "npm run build -w backend",
     "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "test:frontend": "npm run test -w frontend",
+    "test:backend": "npm run test -w backend",
+    "test:watch": "concurrently -n backend,frontend -c blue,magenta \"npm run test:watch -w backend\" \"npm run test:watch -w frontend\"",
+    "test:watch:frontend": "npm run test:watch -w frontend",
+    "test:watch:backend": "npm run test:watch -w backend",
     "start": "npm run start -w backend"
   },
   "devDependencies": {
