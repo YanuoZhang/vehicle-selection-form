@@ -9,6 +9,8 @@ export interface VehicleSelection {
   badge: string;
 }
 
+export const emptySelection: VehicleSelection = { make: "", model: "", badge: "" };
+
 export const vehicles: VehicleData = data;
 
 // Make ids in the dataset are lowercase; these are the names shown to users.

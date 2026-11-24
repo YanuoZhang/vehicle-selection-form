@@ -10,4 +10,13 @@ describe("App", () => {
       screen.getByRole("heading", { name: "Vehicle Selection Form" }),
     ).toBeInTheDocument();
   });
+
+  it("renders the vehicle form", () => {
+    render(<App />);
+
+    expect(screen.getByRole("combobox", { name: "Make" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Quick select" }),
+    ).toBeInTheDocument();
+  });
 });
