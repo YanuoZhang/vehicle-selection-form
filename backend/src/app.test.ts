@@ -10,3 +10,17 @@ describe("GET /api/health", () => {
     expect(res.body).toEqual({ status: "ok" });
   });
 });
+
+describe("unknown API routes", () => {
+  it.each([
+    ["GET", "/api/nope"],
+    ["GET", "/api/submissions"],
+    ["GET", "/api/vehicles"],
+  ])("%s %s returns a JSON 404", async (_method, path) => {
+    const res = await request(createApp()).get(path);
+
+    expect(res.status).toBe(404);
+    expect(res.type).toBe("application/json");
+    expect(res.body.error.code).toBe("NOT_FOUND");
+  });
+});
