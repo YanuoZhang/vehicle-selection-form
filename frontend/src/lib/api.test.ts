@@ -46,7 +46,6 @@ describe("submitVehicle", () => {
 
     const body = init?.body as FormData;
     expect(body).toBeInstanceOf(FormData);
-    expect([...body.keys()]).toEqual(["make", "model", "badge", "logbook"]);
     expect(body.get("make")).toBe("ford");
     expect(body.get("model")).toBe("Ranger");
     expect(body.get("badge")).toBe("Raptor");

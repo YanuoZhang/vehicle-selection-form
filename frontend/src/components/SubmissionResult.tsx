@@ -17,12 +17,12 @@ export function SubmissionResult({ result, onNewSubmission }: SubmissionResultPr
   }, []);
 
   return (
-    <section aria-labelledby={`${id}-heading`}>
+    <section className="card result" aria-labelledby={`${id}-heading`}>
       <h2 id={`${id}-heading`} ref={headingRef} tabIndex={-1}>
         Submission received
       </h2>
 
-      <dl>
+      <dl className="result-details">
         <dt>Make</dt>
         <dd>{getMakeLabel(result.make)}</dd>
         <dt>Model</dt>
@@ -31,11 +31,11 @@ export function SubmissionResult({ result, onNewSubmission }: SubmissionResultPr
         <dd>{result.badge}</dd>
       </dl>
 
-      <p>Logbook:</p>
-      {/* <pre> keeps the file's whitespace and line breaks. */}
-      <pre>{result.logbook.contents}</pre>
+      <p className="result-label">Logbook:</p>
+      {/* <pre> keeps the file's whitespace and line breaks; CSS wraps long lines. */}
+      <pre className="logbook-text">{result.logbook.contents}</pre>
 
-      <button type="button" onClick={onNewSubmission}>
+      <button className="button button-primary" type="button" onClick={onNewSubmission}>
         New Submission
       </button>
     </section>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { submitVehicle, type Submission } from "./lib/api";
@@ -59,7 +59,8 @@ describe("App", () => {
 
     const heading = await submitValidForm();
 
-    expect(heading).toHaveFocus();
+    // Focus moves in an effect, which can run just after the heading appears.
+    await waitFor(() => expect(heading).toHaveFocus());
     expect(screen.queryByRole("combobox", { name: "Make" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
     expect(screen.getByText("Long Range")).toBeInTheDocument();

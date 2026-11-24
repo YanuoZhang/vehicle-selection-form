@@ -61,9 +61,9 @@ export function VehicleForm({ onSubmitted }: VehicleFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className="card" onSubmit={handleSubmit}>
       {/* A disabled fieldset disables every control inside it while the request runs. */}
-      <fieldset disabled={submitting}>
+      <fieldset className="form-body" disabled={submitting}>
         <QuickSelect onSelect={changeVehicle} />
         <VehicleSelector value={vehicle} onChange={changeVehicle} />
         {/* Upload and Submit are hidden until the vehicle is complete; the file stays in state meanwhile. */}
@@ -71,10 +71,14 @@ export function VehicleForm({ onSubmitted }: VehicleFormProps) {
           <LogbookUpload file={logbook} error={fileError} onChange={changeLogbook} />
         )}
 
-        {submitError !== null && <p role="alert">Submission failed: {submitError}</p>}
+        {submitError !== null && (
+          <p className="message message-error" role="alert">
+            Submission failed: {submitError}
+          </p>
+        )}
 
         {vehicleComplete && (
-          <button type="submit" disabled={!canSubmit}>
+          <button className="button button-primary submit" type="submit" disabled={!canSubmit}>
             {submitting ? "Submitting…" : "Submit"}
           </button>
         )}

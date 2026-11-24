@@ -1,7 +1,7 @@
 import data from "@vehicle-selection/shared/vehicles.json";
 
 /** make id → model name → badge names */
-export type VehicleData = Record<string, Record<string, string[]>>;
+type VehicleData = Record<string, Record<string, string[]>>;
 
 export interface VehicleSelection {
   make: string;
@@ -11,7 +11,7 @@ export interface VehicleSelection {
 
 export const emptySelection: VehicleSelection = { make: "", model: "", badge: "" };
 
-export const vehicles: VehicleData = data;
+const vehicles: VehicleData = data;
 
 // Make ids in the dataset are lowercase; these are the names shown to users.
 const makeLabels: Record<string, string> = {

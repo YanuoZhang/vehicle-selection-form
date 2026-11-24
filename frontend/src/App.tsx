@@ -7,8 +7,11 @@ export default function App() {
   const [result, setResult] = useState<Submission | null>(null);
 
   return (
-    <main>
-      <h1>Vehicle Selection Form</h1>
+    <main className="page">
+      <header className="page-header">
+        <h1>Vehicle Selection Form</h1>
+        <p>Choose a vehicle, then upload its logbook as a .txt file.</p>
+      </header>
       {/* Clearing the result remounts VehicleForm, so it starts empty. */}
       {result ? (
         <SubmissionResult result={result} onNewSubmission={() => setResult(null)} />

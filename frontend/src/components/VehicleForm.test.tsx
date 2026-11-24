@@ -244,6 +244,19 @@ describe("logbook upload", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("describes the file input with the current file status", () => {
+    renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Ford Ranger Raptor" }));
+
+    expect(logbookInput()).toHaveAccessibleDescription("No file selected");
+
+    upload(textFile("logbook.txt"));
+
+    expect(logbookInput()).toHaveAccessibleDescription(
+      "Selected: logbook.txt (13 bytes)",
+    );
+  });
+
   it("rejects a file that isn't .txt", () => {
     renderForm();
 
@@ -359,7 +372,10 @@ describe("conditional logbook upload and Submit", () => {
     expectHidden();
 
     choose(badgeSelect(), "XR8");
-    expect(screen.getByText("Selected: logbook.txt (13 bytes)")).toBeInTheDocument();
+    // The new file input is empty, so the status text is what reports the kept file.
+    expect(logbookInput()).toHaveAccessibleDescription(
+      "Selected: logbook.txt (13 bytes)",
+    );
     expect(submitButton()).toBeEnabled();
 
     fireEvent.click(submitButton());

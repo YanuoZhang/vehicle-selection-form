@@ -11,16 +11,23 @@ interface QuickSelectProps {
 /** One button per preset; clicking one reports that full selection. */
 export function QuickSelect({ onSelect }: QuickSelectProps) {
   return (
-    <fieldset>
+    <fieldset className="group">
       <legend>Quick select</legend>
-      {quickSelectPresets.map((preset) => {
-        const label = `${getMakeLabel(preset.make)} ${preset.model} ${preset.badge}`;
-        return (
-          <button key={label} type="button" onClick={() => onSelect(preset)}>
-            {label}
-          </button>
-        );
-      })}
+      <div className="quick-select-options">
+        {quickSelectPresets.map((preset) => {
+          const label = `${getMakeLabel(preset.make)} ${preset.model} ${preset.badge}`;
+          return (
+            <button
+              key={label}
+              className="button button-secondary"
+              type="button"
+              onClick={() => onSelect(preset)}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
     </fieldset>
   );
 }
