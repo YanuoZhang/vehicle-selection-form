@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@vehicle-selection/shared": "*",
     "express": "^5.1.0"
   },
   "devDependencies": {
