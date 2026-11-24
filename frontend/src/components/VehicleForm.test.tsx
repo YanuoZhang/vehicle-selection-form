@@ -1,6 +1,30 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { submitVehicle, SubmissionError, type Submission } from "../lib/api";
+import { MAX_LOGBOOK_BYTES } from "../lib/logbook";
 import { VehicleForm } from "./VehicleForm";
+
+vi.mock("../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/api")>()),
+  submitVehicle: vi.fn(),
+}));
+const submitMock = vi.mocked(submitVehicle);
+
+afterEach(() => {
+  submitMock.mockReset();
+});
+
+function renderForm() {
+  const onSubmitted = vi.fn<(result: Submission) => void>();
+  render(<VehicleForm onSubmitted={onSubmitted} />);
+  return { onSubmitted };
+}
 
 function makeSelect() {
   return screen.getByRole<HTMLSelectElement>("combobox", { name: "Make" });
@@ -26,7 +50,7 @@ function choose(select: HTMLSelectElement, value: string) {
 
 describe("vehicle dropdowns", () => {
   it("starts with nothing selected and only the make dropdown enabled", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     expect(makeSelect()).toHaveValue("");
     expect(makeSelect()).toBeEnabled();
@@ -37,13 +61,13 @@ describe("vehicle dropdowns", () => {
   });
 
   it("lists every make by its display name", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     expect(optionLabels(makeSelect())).toEqual(["Ford", "BMW", "Tesla"]);
   });
 
   it("enables the model dropdown with that make's models once a make is chosen", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     choose(makeSelect(), "ford");
 
@@ -57,7 +81,7 @@ describe("vehicle dropdowns", () => {
   });
 
   it("enables the badge dropdown with that model's badges once a model is chosen", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     choose(makeSelect(), "ford");
     choose(modelSelect(), "Falcon Ute");
@@ -73,7 +97,7 @@ describe("vehicle dropdowns", () => {
   });
 
   it("clears the model and badge when the make changes", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     choose(makeSelect(), "ford");
     choose(modelSelect(), "Ranger");
@@ -87,7 +111,7 @@ describe("vehicle dropdowns", () => {
   });
 
   it("clears the badge when the model changes", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     choose(makeSelect(), "ford");
     choose(modelSelect(), "Falcon");
@@ -99,7 +123,7 @@ describe("vehicle dropdowns", () => {
   });
 
   it("disables the model and badge dropdowns again when the make is cleared", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     choose(makeSelect(), "tesla");
     choose(modelSelect(), "Model 3");
@@ -118,7 +142,7 @@ describe("quick select", () => {
     ["BMW 320e xDrive 75d", "bmw", "320e", "xDrive 75d"],
     ["Tesla Model 3 Long Range", "tesla", "Model 3", "Long Range"],
   ])("%s fills in all three dropdowns", (label, make, model, badge) => {
-    render(<VehicleForm />);
+    renderForm();
 
     fireEvent.click(screen.getByRole("button", { name: label }));
 
@@ -130,7 +154,7 @@ describe("quick select", () => {
   });
 
   it("replaces an existing selection", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     choose(makeSelect(), "ford");
     choose(modelSelect(), "Falcon");
@@ -145,7 +169,7 @@ describe("quick select", () => {
   });
 
   it("leaves the dropdowns editable afterwards", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     fireEvent.click(screen.getByRole("button", { name: "Ford Ranger Raptor" }));
     choose(badgeSelect(), "Wildtrak");
@@ -156,12 +180,308 @@ describe("quick select", () => {
   });
 
   it("uses non-submitting buttons", () => {
-    render(<VehicleForm />);
+    renderForm();
 
     for (const button of within(
       screen.getByRole("group", { name: "Quick select" }),
     ).getAllByRole("button")) {
       expect(button).toHaveAttribute("type", "button");
     }
+  });
+});
+
+function logbookInput() {
+  return screen.getByLabelText<HTMLInputElement>("Logbook (.txt, up to 1 MB)");
+}
+function submitButton() {
+  return screen.getByRole("button", { name: /^Submit/ });
+}
+
+function textFile(name: string, contents = "Serviced 2024") {
+  return new File([contents], name, { type: "text/plain" });
+}
+
+function upload(file: File | null) {
+  fireEvent.change(logbookInput(), { target: { files: file ? [file] : [] } });
+}
+
+function fillInValidForm(file = textFile("logbook.txt")) {
+  fireEvent.click(screen.getByRole("button", { name: "Ford Ranger Raptor" }));
+  upload(file);
+  return file;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const submission: Submission = {
+  make: "ford",
+  model: "Ranger",
+  badge: "Raptor",
+  logbook: { fileName: "logbook.txt", size: 13, contents: "Serviced 2024" },
+};
+
+describe("logbook upload", () => {
+  it("accepts a single .txt file and shows its name and size", () => {
+    renderForm();
+
+    expect(logbookInput()).toHaveAttribute("type", "file");
+    expect(logbookInput()).not.toHaveAttribute("multiple");
+    upload(textFile("LOGBOOK.TXT"));
+
+    expect(screen.getByText("Selected: LOGBOOK.TXT (13 bytes)")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("rejects a file that isn't .txt", () => {
+    renderForm();
+
+    fillInValidForm(textFile("logbook.pdf"));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Only .txt files are accepted",
+    );
+    expect(logbookInput()).toHaveAccessibleDescription(
+      "Only .txt files are accepted",
+    );
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("rejects a file over 1 MB", () => {
+    renderForm();
+
+    fillInValidForm(textFile("big.txt", "a".repeat(MAX_LOGBOOK_BYTES + 1)));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The logbook must be 1 MB or smaller",
+    );
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("clears the error when a valid file replaces an invalid one", () => {
+    renderForm();
+
+    fillInValidForm(textFile("logbook.pdf"));
+    upload(textFile("logbook.txt"));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(submitButton()).toBeEnabled();
+  });
+
+  it("discards a previously valid file when an invalid one is selected", () => {
+    renderForm();
+
+    fillInValidForm(textFile("logbook.txt"));
+    expect(submitButton()).toBeEnabled();
+    upload(textFile("logbook.pdf"));
+
+    expect(screen.queryByText(/^Selected:/)).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Only .txt files are accepted");
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("forgets the file when the selection is cleared", () => {
+    renderForm();
+
+    fillInValidForm();
+    upload(null);
+
+    expect(screen.queryByText(/^Selected:/)).not.toBeInTheDocument();
+    expect(submitButton()).toBeDisabled();
+  });
+});
+
+describe("submission", () => {
+  it("keeps Submit disabled until both the vehicle and the file are valid", () => {
+    renderForm();
+    expect(submitButton()).toBeDisabled();
+    expect(submitButton()).toHaveAttribute("type", "submit");
+
+    upload(textFile("logbook.txt"));
+    expect(submitButton()).toBeDisabled();
+
+    choose(makeSelect(), "ford");
+    choose(modelSelect(), "Ranger");
+    expect(submitButton()).toBeDisabled();
+
+    choose(badgeSelect(), "Raptor");
+    expect(submitButton()).toBeEnabled();
+
+    choose(makeSelect(), "bmw");
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("sends the selected vehicle and file and reports the result", async () => {
+    submitMock.mockResolvedValue(submission);
+    const { onSubmitted } = renderForm();
+
+    const file = fillInValidForm();
+    fireEvent.click(submitButton());
+
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith(submission));
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    expect(submitMock).toHaveBeenCalledWith(
+      { make: "ford", model: "Ranger", badge: "Raptor" },
+      file,
+    );
+  });
+
+  it("does not submit again while a request is in progress", async () => {
+    const request = deferred<Submission>();
+    submitMock.mockReturnValue(request.promise);
+    const { onSubmitted } = renderForm();
+
+    fillInValidForm();
+    const form = submitButton().closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    expect(submitButton()).toBeDisabled();
+    expect(submitButton()).toHaveTextContent("Submitting…");
+
+    request.resolve(submission);
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(1));
+    expect(submitMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the API error and lets the user retry", async () => {
+    submitMock
+      .mockRejectedValueOnce(
+        new SubmissionError("The logbook file is empty", "EMPTY_FILE", 400),
+      )
+      .mockResolvedValueOnce(submission);
+    const { onSubmitted } = renderForm();
+
+    fillInValidForm();
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Submission failed: The logbook file is empty",
+    );
+    expect(onSubmitted).not.toHaveBeenCalled();
+    expect(submitButton()).toBeEnabled();
+    expect(submitButton()).toHaveTextContent("Submit");
+
+    fireEvent.click(submitButton());
+
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith(submission));
+    expect(submitMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a network error", async () => {
+    submitMock.mockRejectedValue(
+      new SubmissionError(
+        "Couldn't reach the server. Check your connection and try again.",
+        "NETWORK_ERROR",
+      ),
+    );
+    renderForm();
+
+    fillInValidForm();
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't reach the server. Check your connection and try again.",
+    );
+    expect(submitButton()).toBeEnabled();
+  });
+
+  it("shows a generic message for an unexpected error", async () => {
+    submitMock.mockRejectedValue(new Error("boom"));
+    renderForm();
+
+    fillInValidForm();
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Submission failed: Something went wrong. Please try again.",
+    );
+  });
+
+  it("clears the submission error when the vehicle changes", async () => {
+    submitMock.mockRejectedValue(
+      new SubmissionError("Server error", "INTERNAL_ERROR", 500),
+    );
+    renderForm();
+
+    fillInValidForm();
+    fireEvent.click(submitButton());
+    await screen.findByRole("alert");
+
+    choose(badgeSelect(), "Wildtrak");
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("while submitting", () => {
+  function controls() {
+    return [
+      makeSelect(),
+      modelSelect(),
+      badgeSelect(),
+      logbookInput(),
+      ...within(screen.getByRole("group", { name: "Quick select" })).getAllByRole(
+        "button",
+      ),
+    ];
+  }
+
+  it("disables every input and keeps the submitted values", async () => {
+    const request = deferred<Submission>();
+    submitMock.mockReturnValue(request.promise);
+    renderForm();
+
+    fillInValidForm();
+    fireEvent.click(submitButton());
+
+    for (const control of controls()) expect(control).toBeDisabled();
+    expect(makeSelect()).toHaveValue("ford");
+    expect(modelSelect()).toHaveValue("Ranger");
+    expect(badgeSelect()).toHaveValue("Raptor");
+    expect(screen.getByText("Selected: logbook.txt (13 bytes)")).toBeInTheDocument();
+
+    request.resolve(submission);
+    await waitFor(() => expect(submitButton()).toHaveTextContent(/^Submit$/));
+  });
+
+  it("makes the inputs editable again after a failed request", async () => {
+    const request = deferred<Submission>();
+    submitMock.mockReturnValue(request.promise);
+    renderForm();
+
+    fillInValidForm();
+    fireEvent.click(submitButton());
+    request.reject(new SubmissionError("Server error", "INTERNAL_ERROR", 500));
+    await screen.findByRole("alert");
+
+    for (const control of controls()) expect(control).toBeEnabled();
+    choose(badgeSelect(), "Wildtrak");
+    expect(badgeSelect()).toHaveValue("Wildtrak");
+  });
+
+  it("allows another submission after a successful one", async () => {
+    submitMock.mockResolvedValue(submission);
+    const { onSubmitted } = renderForm();
+
+    fillInValidForm();
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(1));
+
+    for (const control of controls()) expect(control).toBeEnabled();
+    expect(submitButton()).toBeEnabled();
+    fireEvent.click(submitButton());
+
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(2));
+    expect(submitMock).toHaveBeenCalledTimes(2);
   });
 });
